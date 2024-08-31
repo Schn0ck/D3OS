@@ -19,7 +19,7 @@
    ║ Author: Fabian Ruhland, HHU                                             ║
    ╚═════════════════════════════════════════════════════════════════════════╝
 */
-
+use alloc::boxed::Box;
 use crate::memory::alloc::StackAllocator;
 use crate::memory::r#virtual::{VirtualMemoryArea, VmaType};
 use crate::memory::{MemorySpace, PAGE_SIZE};
@@ -40,7 +40,7 @@ use x86_64::structures::paging::page::PageRange;
 use x86_64::structures::paging::{Page, PageTableFlags, Size4KiB};
 use x86_64::PrivilegeLevel::Ring3;
 use x86_64::VirtAddr;
-
+use crate::capabilities::Capability;
 use crate::consts::KERNEL_STACK_PAGES;
 use crate::consts::MAIN_USER_STACK_START;
 use crate::consts::MAX_USER_STACK_SIZE;
@@ -59,6 +59,7 @@ pub struct Thread {
     process: Arc<Process>, // reference to my process
     entry: fn(),           // user thread: =0;                 kernel thread: address of entry function
     user_rip: VirtAddr,    // user thread: elf-entry function; kernel thread: =0
+    capabilities: Vec<Box<dyn Capability>>,
 }
 
 impl Stacks {
@@ -97,6 +98,7 @@ impl Thread {
                 .expect("Trying to create a kernel thread before process initialization!"),
             entry,
             user_rip: VirtAddr::zero(),
+            capabilities: Vec::new(),
         };
 
         thread.prepare_kernel_stack();
@@ -189,6 +191,7 @@ impl Thread {
             process,
             entry: unsafe { mem::transmute(ptr::null::<fn()>()) },
             user_rip: VirtAddr::new(elf.entry),
+            capabilities: Vec::new(),
         };
 
         thread.prepare_kernel_stack();
@@ -255,6 +258,7 @@ impl Thread {
             process: parent,
             entry,
             user_rip: kickoff_addr,
+            capabilities: Vec::new(),
         };
         thread.prepare_kernel_stack();
         return Rc::new(thread);
@@ -444,6 +448,16 @@ impl Thread {
         unsafe {
             thread_user_start(old_rsp0, self.entry);
         }
+    }
+
+    // Method to add a capability to the thread
+    pub fn add_capability(&mut self, cap: Box<dyn Capability>) {
+        self.capabilities.push(cap);
+    }
+
+    // Method to check if the thread has a specific capability
+    pub fn has_capability<T: Capability>(&self) -> bool {
+        self.capabilities.iter().any(|cap| cap.can_access_date())
     }
 }
 

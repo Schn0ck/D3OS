@@ -9,6 +9,7 @@ use uefi::table::runtime::{Time, TimeParams};
 use x86_64::structures::paging::PageTableFlags;
 use x86_64::VirtAddr;
 use crate::{efi_system_table, initrd, process_manager, scheduler, terminal, timer};
+use crate::capabilities::DateReadCapability;
 use crate::memory::{MemorySpace, PAGE_SIZE};
 use crate::memory::r#virtual::{VirtualMemoryArea, VmaType};
 use crate::process::thread::Thread;
@@ -111,6 +112,11 @@ pub extern "C" fn sys_get_system_time() -> usize {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn sys_get_date() -> usize {
+    //if current thread does not have the capability to access the date, panic
+    if !scheduler().current_thread().has_capability::<DateReadCapability>() {
+        panic!("Thread does not have the capability to access the date!");
+    }
+
     if let Some(efi_system_table) = efi_system_table() {
         let system_table = efi_system_table.read();
         let runtime_services = unsafe { system_table.runtime_services() };
