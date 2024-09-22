@@ -459,6 +459,10 @@ impl Thread {
         self.capabilities.deny(cap);
     }
 
+    pub fn get_capabilities(&self) -> Capability {
+        self.capabilities
+    }
+
     // Method to check if the thread has the capabilities of the cap object (logically: if cap.has_access --> self.capabilities.has_access then true else false)
     pub fn is_allowed(&self, cap: Capability) -> bool {
         self.capabilities.is_allowed(cap)

@@ -150,15 +150,18 @@ pub extern "C" fn sys_thread_exit() {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn sys_process_execute_binary(name_buffer: *const u8, name_length: usize) -> usize {
+    let cur_thread = scheduler().current_thread();
+
     //if current thread does not have the capability to access the syscall, panic
-    if !scheduler().current_thread().is_allowed(Capability::process_execute_binary()) {
+    if !cur_thread.is_allowed(Capability::process_execute_binary()) {
         panic!("Thread does not have the capability to access sys_process_execute_binary!");
     }
 
     let app_name = from_utf8(unsafe { slice_from_raw_parts(name_buffer, name_length).as_ref().unwrap() }).unwrap();
     match initrd().entries().find(|entry| entry.filename().as_str().unwrap() == app_name) {
         Some(app) => {
-            let thread = Thread::load_application(app.data());
+            let mut thread = Thread::load_application(app.data());
+            Rc::get_mut(&mut thread).unwrap().add_capabilities(cur_thread.get_capabilities().clone());
             scheduler().ready(Rc::clone(&thread));
             thread.id()
         }

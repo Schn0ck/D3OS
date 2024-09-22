@@ -1,3 +1,4 @@
+#[derive(Clone,Copy,Debug)]
 pub struct Capability {
     pub read: bool,
     pub write: bool,
