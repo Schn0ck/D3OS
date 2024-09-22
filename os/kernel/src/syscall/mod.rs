@@ -1,3 +1,4 @@
+use alloc::boxed::Box;
 use alloc::format;
 use alloc::rc::Rc;
 use alloc::string::ToString;
@@ -8,8 +9,9 @@ use chrono::{Datelike, DateTime, TimeDelta, Timelike};
 use uefi::table::runtime::{Time, TimeParams};
 use x86_64::structures::paging::PageTableFlags;
 use x86_64::VirtAddr;
+use syscall::SystemCall::{GetDate, GetSystemTime};
 use crate::{efi_system_table, initrd, process_manager, scheduler, terminal, timer};
-use crate::capabilities::DateReadCapability;
+use crate::capabilities::*;
 use crate::memory::{MemorySpace, PAGE_SIZE};
 use crate::memory::r#virtual::{VirtualMemoryArea, VmaType};
 use crate::process::thread::Thread;
@@ -18,6 +20,11 @@ pub mod syscall_dispatcher;
 
 #[unsafe(no_mangle)]
 pub extern "C" fn sys_read() -> usize {
+    //if current thread does not have the capability to access the syscall, panic
+    if !scheduler().current_thread().is_allowed(Capability::read()) {
+       panic!("Thread does not have the capability to access sys_read!");
+    }
+
     let terminal = terminal();
     match terminal.read_byte() {
         -1 => panic!("Input stream closed!"),
@@ -27,6 +34,11 @@ pub extern "C" fn sys_read() -> usize {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn sys_write(buffer: *const u8, length: usize) {
+    //if current thread does not have the capability to access the syscall, panic
+        if !scheduler().current_thread().is_allowed(Capability::write()) {
+        panic!("Thread does not have the capability to access sys_write!"); //TODO Find out how to handle this without hindering system from boot
+    }
+
     let string = from_utf8(unsafe { slice_from_raw_parts(buffer, length).as_ref().unwrap() }).unwrap();
     let terminal = terminal();
     terminal.write_str(string);
@@ -34,6 +46,11 @@ pub extern "C" fn sys_write(buffer: *const u8, length: usize) {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn sys_map_user_heap(size: usize) -> usize {
+    //if current thread does not have the capability to access the syscall, panic
+    if !scheduler().current_thread().is_allowed(Capability::map_user_heap()) {
+        panic!("Thread does not have the capability to access sys_map_user_heap!");
+    }
+
     let process = process_manager().read().current_process();
     let code_areas = process.find_vmas(VmaType::Code);
     let code_area = code_areas.get(0).expect("Process does not have code area!");
@@ -48,11 +65,21 @@ pub extern "C" fn sys_map_user_heap(size: usize) -> usize {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn sys_process_id() -> usize {
+    //if current thread does not have the capability to access the syscall, panic
+    if !scheduler().current_thread().is_allowed(Capability::process_id()) {
+        panic!("Thread does not have the capability to access sys_process_id!");
+    }
+
     process_manager().read().current_process().id()
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn sys_process_exit() {
+    //if current thread does not have the capability to access the syscall, panic
+    if !scheduler().current_thread().is_allowed(Capability::process_exit()) {
+        panic!("Thread does not have the capability to access sys_process_exit!");
+    }
+
     scheduler().current_thread().process().exit();
     scheduler().exit();
 }
@@ -60,6 +87,11 @@ pub extern "C" fn sys_process_exit() {
 #[unsafe(no_mangle)]
 #[allow(improper_ctypes_definitions)] // 'entry' takes no arguments and has no return value, so we just assume that the "C" and "Rust" ABIs act the same way in this case
 pub extern "C" fn sys_thread_create(kickoff_addr: u64, entry: fn()) -> usize {
+    //if current thread does not have the capability to access the syscall, panic
+    if !scheduler().current_thread().is_allowed(Capability::thread_create()) {
+        panic!("Thread does not have the capability to access sys_thread_create!");
+    }
+
     let thread = Thread::new_user_thread(process_manager().read().current_process(), VirtAddr::new(kickoff_addr), entry);
     let id = thread.id();
 
@@ -69,31 +101,60 @@ pub extern "C" fn sys_thread_create(kickoff_addr: u64, entry: fn()) -> usize {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn sys_thread_id() -> usize {
+    //if current thread does not have the capability to access the syscall, panic
+    if !scheduler().current_thread().is_allowed(Capability::thread_id()) {
+        panic!("Thread does not have the capability to access sys_thread_id!");
+    }
+
     scheduler().current_thread().id()
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn sys_thread_switch() {
+    //if current thread does not have the capability to access the syscall, panic
+    if !scheduler().current_thread().is_allowed(Capability::thread_switch()) {
+        panic!("Thread does not have the capability to access sys_thread_switch!");
+    }
+
     scheduler().switch_thread_no_interrupt();
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn sys_thread_sleep(ms: usize) {
+    //if current thread does not have the capability to access the syscall, panic
+    if !scheduler().current_thread().is_allowed(Capability::thread_sleep()) {
+        panic!("Thread does not have the capability to access sys_thread_sleep!");
+    }
+
     scheduler().sleep(ms);
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn sys_thread_join(id: usize) {
+    //if current thread does not have the capability to access the syscall, panic
+    if !scheduler().current_thread().is_allowed(Capability::thread_join()) {
+        panic!("Thread does not have the capability to access sys_thread_join!");
+    }
     scheduler().join(id);
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn sys_thread_exit() {
+    //if current thread does not have the capability to access the syscall, panic
+    if !scheduler().current_thread().is_allowed(Capability::thread_exit()) {
+        panic!("Thread does not have the capability to access sys_thread_exit!");
+    }
+
     scheduler().exit();
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn sys_process_execute_binary(name_buffer: *const u8, name_length: usize) -> usize {
+    //if current thread does not have the capability to access the syscall, panic
+    if !scheduler().current_thread().is_allowed(Capability::process_execute_binary()) {
+        panic!("Thread does not have the capability to access sys_process_execute_binary!");
+    }
+
     let app_name = from_utf8(unsafe { slice_from_raw_parts(name_buffer, name_length).as_ref().unwrap() }).unwrap();
     match initrd().entries().find(|entry| entry.filename().as_str().unwrap() == app_name) {
         Some(app) => {
@@ -107,13 +168,18 @@ pub extern "C" fn sys_process_execute_binary(name_buffer: *const u8, name_length
 
 #[unsafe(no_mangle)]
 pub extern "C" fn sys_get_system_time() -> usize {
+    //if current thread does not have the capability to access the time, panic
+    if !scheduler().current_thread().is_allowed(Capability::get_system_time()) {
+        panic!("Thread does not have the capability to access the system time!");
+    }
+
     timer().read().systime_ms()
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn sys_get_date() -> usize {
     //if current thread does not have the capability to access the date, panic
-    if !scheduler().current_thread().has_capability::<DateReadCapability>() {
+    if !scheduler().current_thread().is_allowed(Capability::get_date()) {
         panic!("Thread does not have the capability to access the date!");
     }
 

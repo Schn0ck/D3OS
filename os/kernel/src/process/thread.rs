@@ -40,7 +40,7 @@ use x86_64::structures::paging::page::PageRange;
 use x86_64::structures::paging::{Page, PageTableFlags, Size4KiB};
 use x86_64::PrivilegeLevel::Ring3;
 use x86_64::VirtAddr;
-use crate::capabilities::Capability;
+use crate::capabilities::*;
 use crate::consts::KERNEL_STACK_PAGES;
 use crate::consts::MAIN_USER_STACK_START;
 use crate::consts::MAX_USER_STACK_SIZE;
@@ -59,7 +59,7 @@ pub struct Thread {
     process: Arc<Process>, // reference to my process
     entry: fn(),           // user thread: =0;                 kernel thread: address of entry function
     user_rip: VirtAddr,    // user thread: elf-entry function; kernel thread: =0
-    capabilities: Vec<Box<dyn Capability>>,
+    capabilities: Capability,
 }
 
 impl Stacks {
@@ -98,11 +98,11 @@ impl Thread {
                 .expect("Trying to create a kernel thread before process initialization!"),
             entry,
             user_rip: VirtAddr::zero(),
-            capabilities: Vec::new(),
+            capabilities: Capability::new(),
         };
 
         thread.prepare_kernel_stack();
-        return Rc::new(thread);
+        Rc::new(thread)
     }
 
  
@@ -191,11 +191,11 @@ impl Thread {
             process,
             entry: unsafe { mem::transmute(ptr::null::<fn()>()) },
             user_rip: VirtAddr::new(elf.entry),
-            capabilities: Vec::new(),
+            capabilities: Capability::new(),
         };
 
         thread.prepare_kernel_stack();
-        return Rc::new(thread);
+        Rc::new(thread)
     }
 
     ///
@@ -258,7 +258,7 @@ impl Thread {
             process: parent,
             entry,
             user_rip: kickoff_addr,
-            capabilities: Vec::new(),
+            capabilities: Capability::new(),
         };
         thread.prepare_kernel_stack();
         return Rc::new(thread);
@@ -451,13 +451,17 @@ impl Thread {
     }
 
     // Method to add a capability to the thread
-    pub fn add_capability(&mut self, cap: Box<dyn Capability>) {
-        self.capabilities.push(cap);
+    pub fn add_capabilities(&mut self, cap: Capability) {
+        self.capabilities.allow(cap);
     }
 
-    // Method to check if the thread has a specific capability
-    pub fn has_capability<T: Capability>(&self) -> bool {
-        self.capabilities.iter().any(|cap| cap.can_access_date())
+    pub fn remove_capabilities(&mut self, cap: Capability) {
+        self.capabilities.deny(cap);
+    }
+
+    // Method to check if the thread has the capabilities of the cap object (logically: if cap.has_access --> self.capabilities.has_access then true else false)
+    pub fn is_allowed(&self, cap: Capability) -> bool {
+        self.capabilities.is_allowed(cap)
     }
 }
 
