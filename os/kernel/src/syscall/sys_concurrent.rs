@@ -12,11 +12,17 @@ use core::ptr::slice_from_raw_parts;
 use core::str::from_utf8;
 use x86_64::VirtAddr;
 use syscall::return_vals::Errno;
-use crate::{initrd, process_manager, scheduler};
+use crate::{initrd, panic, process_manager, scheduler};
+use crate::capabilities::Capability;
 use crate::process::thread::Thread;
 
 
 pub fn sys_process_id() -> isize {
+
+    if !scheduler().current_thread().is_allowed(Capability::thread_id()){ //Todo process not thread
+        panic!("Current thread does not have the required capability to read the process id!");
+    }
+
     process_manager().read().current_process().id() as isize
 }
 
@@ -62,7 +68,8 @@ pub fn sys_process_execute_binary(name_buffer: *const u8, name_length: usize, ar
     let app_name = from_utf8(unsafe { slice_from_raw_parts(name_buffer, name_length).as_ref().unwrap() }).unwrap();
     match initrd().entries().find(|entry| entry.filename().as_str().unwrap() == app_name) {
         Some(app) => {
-            let thread = Thread::load_application(app.data(), app_name, unsafe { args.as_ref().unwrap() });
+            let mut thread = Thread::load_application(app.data(), app_name, unsafe { args.as_ref().unwrap() });
+            Rc::get_mut(&mut thread).unwrap().add_capabilities(scheduler().current_thread().get_capabilities().clone()); //TODO: Should this use the same capabilities as the current thread?
             scheduler().ready(Rc::clone(&thread));
             thread.id() as isize
         }

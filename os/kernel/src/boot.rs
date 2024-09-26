@@ -7,12 +7,13 @@
    ║ Author: Fabian Ruhland, HHU                                             ║
    ╚═════════════════════════════════════════════════════════════════════════╝
 */
-
+use alloc::boxed::Box;
 use crate::interrupt::interrupt_dispatcher;
 use crate::naming;
 use crate::syscall::syscall_dispatcher;
 use crate::process::thread::Thread;
 use alloc::format;
+use alloc::rc::Rc;
 use alloc::string::ToString;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
@@ -47,6 +48,8 @@ use x86_64::structures::paging::page::PageRange;
 use crate::{acpi_tables, allocator, apic, built_info, efi_system_table, gdt, init_acpi_tables, init_apic, init_efi_system_table, init_initrd, init_pci, init_serial_port, init_terminal, initrd, keyboard, logger, memory, network, process_manager, scheduler, serial_port, terminal, timer, tss};
 use crate::device::pit::Timer;
 use crate::device::ps2::Keyboard;
+use crate::capabilities::*;
+use crate::capabilities;
 use crate::device::qemu_cfg;
 use crate::device::serial::SerialPort;
 use crate::memory::{MemorySpace, nvmem};
@@ -265,10 +268,16 @@ pub extern "C" fn start(multiboot2_magic: u32, multiboot2_addr: *const BootInfor
     }));
 
     // Create and register the 'shell' thread (from app image in ramdisk) in the scheduler
-    scheduler().ready(Thread::load_application(initrd().entries()
+    let mut thread = Thread::load_application(initrd().entries()
         .find(|entry| entry.filename().as_str().unwrap() == "shell")
         .expect("Shell application not available!")
-        .data(), "shell", &Vec::new()));
+        .data(), "shell", &Vec::new());
+
+    //Add all syscall_capabilities to 'shell' thread
+    Rc::get_mut(&mut thread).unwrap().add_capabilities(Capability::all()); //TODO: reasonable?
+
+    //Schedule 'shell' thread
+    scheduler().ready(thread);
 
     // Disable terminal logging (remove terminal output stream)
     logger().remove(terminal().as_ref());
