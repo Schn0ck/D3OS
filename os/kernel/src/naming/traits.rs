@@ -5,12 +5,13 @@
    ║         - NsInterface: specifies all operations provided by the ns      ║
    ║         - NsNode: trait defining all operations on a named object       ║
    ║         - NsNodeDirectory: specifies all operations on a directory      ║
-   ║         - NsNodeFile: trait defining all operations on a file           ║
-   ║         - NsOpenFile: specifies all operations on an open file          ║
+   ║         - NsNodeFile: trait defining all operations on a file2           ║
+   ║         - NsOpenFile: specifies all operations on an open file2          ║
    ╟─────────────────────────────────────────────────────────────────────────╢
    ║ Author: Michael Schoettner, Univ. Duesseldorf, 12.9.2024                ║
    ╚═════════════════════════════════════════════════════════════════════════╝
 */
+#![allow(dead_code)]
 use alloc::vec::Vec;
 use alloc::boxed::Box;
 use alloc::string::String;
@@ -32,9 +33,9 @@ pub(super) trait NsInterface: Debug + Send + Sync {
     /// Create a directory (including all sub directories)
     fn mkdir(&self, path: &String) -> Result<(),Errno>;
     
-    /// Open the file given in `path` (must be absolute)
+    /// Open the file2 given in `path` (must be absolute)
     /// Options for opening files
-    /// Returns a file handle on success
+    /// Returns a file2 handle on success
     fn open(&self, path: &String, flags: OpenOptions) -> Result<Box<dyn NsOpenFile>, Errno>;
 
     /// Dump all nodes in the naming service (for debugging)
@@ -47,9 +48,9 @@ pub(super) trait NsNode: Debug + Send + Sync {
     fn get_type(&self) -> NsNodeType;
 }
 
-/// `NsNodeFile` represents a file node of the naming service
+/// `NsNodeFile` represents a file2 node of the naming service
 pub trait NsNodeFile: NsNode + Debug + Send + Sync {
-	/// Create a file handle to the current file
+	/// Create a file2 handle to the current file2
 	fn get_handle(&self, _opt: OpenOptions) -> Result<Box<dyn NsOpenFile>, Errno>;
 }
 
@@ -60,26 +61,26 @@ pub(super) trait NsNodeDirectory : NsNode + Debug + Send + Sync
     /// Helper function to create a new dirctory node
     fn mkdir(&self, _components: &mut Vec<&str>) -> Result<(),Errno>;
 
-    /// Helper function to open a file
+    /// Helper function to open a file2
     fn open(
         &self,
         path: &mut Vec<&str>,
         _flags: OpenOptions,
     ) -> Result<Box<dyn NsOpenFile>, Errno>;
 
-    /// Helper function to print the current state of the file system
+    /// Helper function to print the current state of the file2 system
     fn dump(&self, _tabs: String);
 }
 
-/// Description: This trait defines all functions that can be applied to an open file
+/// Description: This trait defines all functions that can be applied to an open file2
 pub(super) trait NsOpenFile: Debug + Send + Sync {
 
     ///
     /// Description: \
-    ///    Read bytes from the file (from current position) into the given buffer. \
+    ///    Read bytes from the file2 (from current position) into the given buffer. \
     ///    The number of bytes to be read is determined by the buffer size 
     ///
-    /// Parameters: `buf` buffer to copy file bytes into
+    /// Parameters: `buf` buffer to copy file2 bytes into
     ///
     /// Return: `Ok(#bytes read)` or `Err(errno)`
     ///
@@ -87,24 +88,24 @@ pub(super) trait NsOpenFile: Debug + Send + Sync {
 
     ///
     /// Description: \
-    ///    Write bytes from the given buffer into the file (at the current position). \
+    ///    Write bytes from the given buffer into the file2 (at the current position). \
     ///    The number of bytes to be written is determined by the buffer size 
     ///
-    /// Parameters: `buf` buffer from which bytes are copied into the file
+    /// Parameters: `buf` buffer from which bytes are copied into the file2
     ///
     /// Return: `Ok(#bytes written)` or `Err(errno)`
     ///
     fn write(&self, buf: &[u8]) -> Result<usize, Errno>;
 
     ///
-    /// Description: Get file size.
+    /// Description: Get file2 size.
     ///
     /// Return: `Ok(size in bytes)` or `Err(errno)`
     ///
     fn size(&self) -> usize;
 
     ///
-    /// Description: Set file pointer.
+    /// Description: Set file2 pointer.
     ///
     /// Parameters: \
     ///    `offset` offset in bytes \

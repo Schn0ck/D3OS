@@ -9,11 +9,22 @@
 
 use crate::memory::r#virtual::{VirtualMemoryArea, VmaType};
 use crate::memory::{MemorySpace, PAGE_SIZE};
-use crate::process_manager;
+use crate::{process_manager, scheduler};
 use x86_64::structures::paging::PageTableFlags;
+use crate::capabilities::{Capability, CapabilityFlags, CapabilityType};
 
+fn check_caps(){
+    let cur_thread = scheduler().current_thread();
+    let cap = Capability::new(CapabilityType::SysVmem, CapabilityFlags::empty());
+
+    if !cur_thread.validate(cap){
+        panic!("Current thread does not have the required Capability to access concurrency syscalls!");
+    }
+}
 
 pub fn sys_map_user_heap(size: usize) -> isize {
+    check_caps();
+
     let process = process_manager().read().current_process();
     let code_areas = process.find_vmas(VmaType::Code);
     let code_area = code_areas.get(0).expect("Process does not have code area!");

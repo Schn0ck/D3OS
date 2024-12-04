@@ -13,3 +13,4 @@ pub mod sys_terminal;
 pub mod sys_time;
 pub mod syscall_dispatcher;
 pub mod sys_vmem;
+pub mod sys_capabilities;

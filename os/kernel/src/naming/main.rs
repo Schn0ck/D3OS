@@ -90,7 +90,7 @@ impl NsInterface for Ns {
             components.reverse();
             components.pop();
 
-            // get root directory and open the desired file
+            // get root directory and open the desired file2
             self
                 .root_dir()
                 .clone()

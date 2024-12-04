@@ -13,14 +13,14 @@ use num_enum::{FromPrimitive, IntoPrimitive};
 #[repr(isize)]
 pub enum Errno {
     #[num_enum(default)]
-    EUNKN = -1, // Unknown error
+    EUNKN = -1,      // Unknown error
     ENOENT = -2,     // No such file or directory
-	ENOHANDLES = -3,    // No more free handles
+	ENOHANDLES = -3, // No more free handles
     EACCES = -13,    // Permission denied
     EEXIST = -17,    // File/directory exists
     ENOTDIR = -20,   // Not a directory
     EINVAL = -22,    // Invalid argument
-    EINVALH   = -23,    // Invalid handle
+    EINVALH   = -23, // Invalid handle
     ENOTEMPTY = -90, // Directory not empty
 }
 

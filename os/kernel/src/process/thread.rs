@@ -19,7 +19,6 @@
    ║ Author: Fabian Ruhland, HHU                                             ║
    ╚═════════════════════════════════════════════════════════════════════════╝
 */
-use alloc::boxed::Box;
 use crate::memory::alloc::StackAllocator;
 use crate::memory::r#virtual::{VirtualMemoryArea, VmaType};
 use crate::memory::{MemorySpace, PAGE_SIZE};
@@ -28,12 +27,16 @@ use crate::process::scheduler;
 use crate::syscall::syscall_dispatcher::CORE_LOCAL_STORAGE_TSS_RSP0_PTR_INDEX;
 use crate::{memory, process_manager, scheduler, tss};
 use alloc::rc::Rc;
+use alloc::string::String;
 use alloc::sync::Arc;
+use alloc::vec;
 use alloc::vec::Vec;
 use core::arch::asm;
 use core::{mem, ptr};
+use core::fmt::{Debug, Formatter};
 use goblin::elf::Elf;
 use goblin::elf64;
+use log::{error, info};
 use spin::Mutex;
 use x86_64::structures::gdt::SegmentSelector;
 use x86_64::structures::paging::page::PageRange;
@@ -52,14 +55,20 @@ struct Stacks {
     old_rsp0: VirtAddr, // used for thread switching; rsp3 is stored in TSS
 }
 
-/// thread meta data 
+/// thread meta data
 pub struct Thread {
     id: usize, 
     stacks: Mutex<Stacks>,
     process: Arc<Process>, // reference to my process
     entry: fn(),           // user thread: =0;                 kernel thread: address of entry function
     user_rip: VirtAddr,    // user thread: elf-entry function; kernel thread: =0
-    capabilities: Capability,
+    pub(crate) capabilities: Mutex<Vec<Capability>> //Todo maybe more efficient data structure?
+}
+
+impl Debug for Thread {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        write!(f, "Thread {}", self.id)
+    }
 }
 
 impl Stacks {
@@ -89,7 +98,7 @@ impl Thread {
             process: process_manager().read() .kernel_process() .expect("Trying to create a kernel thread before process initialization!"),
             entry,
             user_rip: VirtAddr::zero(),
-            capabilities: Capability::new(),
+            capabilities: Mutex::new(Vec::new()),
         };
 
         thread.prepare_kernel_stack();
@@ -106,7 +115,7 @@ impl Thread {
         let process = process_manager().write().create_process();
         let address_space = process.address_space();
 
-        // Parse elf file headers and map code vma if successful
+        // Parse elf file2 headers and map code vma if successful
         let elf = Elf::parse(elf_buffer).expect("Failed to parse application");
         elf.program_headers .iter()
             .filter(|header| header.p_type == elf64::program_header::PT_LOAD)
@@ -192,7 +201,7 @@ impl Thread {
             process,
             entry: unsafe { mem::transmute(ptr::null::<fn()>()) },
             user_rip: VirtAddr::new(elf.entry),
-            capabilities: Capability::new(),
+            capabilities: Mutex::new(Vec::new()),
         };
 
         thread.prepare_kernel_stack();
@@ -233,7 +242,7 @@ impl Thread {
             process: parent,
             entry,
             user_rip: kickoff_addr,
-            capabilities: Capability::new(),
+            capabilities: Mutex::new(Vec::new()),
         };
 
         thread.prepare_kernel_stack();
@@ -416,22 +425,36 @@ impl Thread {
         }
     }
 
-    // Method to add a capability to the thread
-    pub fn add_capabilities(&mut self, cap: Capability) {
-        self.capabilities.allow(cap);
+    /// adds a Capability to the thread
+    pub fn add_capability(&mut self, cap: Capability) {
+        self.capabilities.lock().push(
+            cap
+        );
     }
 
-    pub fn remove_capabilities(&mut self, cap: Capability) {
-        self.capabilities.deny(cap);
+    pub fn add_capabilities(&mut self, caps: Vec<Capability>) {
+        for cap in caps {
+            self.capabilities.lock().push(
+                cap
+            );
+        }
     }
 
-    pub fn get_capabilities(&self) -> Capability {
-        self.capabilities
+    ///clones the capabilities of the thread
+    pub fn get_capabilities(&self) -> Vec<Capability> {
+        self.capabilities.lock().clone()
     }
 
-    // Method to check if the thread has the capabilities of the cap object (logically: if cap.has_access --> self.capabilities.has_access then true else false)
-    pub fn is_allowed(&self, cap: Capability) -> bool {
-        self.capabilities.is_allowed(cap)
+    pub fn validate(&self, cap: Capability) -> bool {
+        for c in self.capabilities.lock().iter() {
+            if *c == cap {
+                info!("validate Thread {} for cap {:?} : {:?}", self.id, cap.get_type(), c); //TODO remove
+                return true;
+            }
+        }
+        error!("validate Thread {} for cap {:?} - failed", self.id, cap.get_type());
+        error!("Thread capabilities: {:?}", self.capabilities);
+        false
     }
 }
 
@@ -439,28 +462,28 @@ impl Thread {
 #[naked]
 #[allow(unsafe_op_in_unsafe_fn)]
 unsafe extern "C" fn thread_kernel_start(old_rsp0: u64) {
-    asm!(
-        "mov rsp, rdi", // First parameter -> load 'old_rsp0'
-        "pop rbp",
-        "pop rdi", // 'old_rsp0' is here
-        "pop rsi",
-        "pop rdx",
-        "pop rcx",
-        "pop rbx",
-        "pop rax",
-        "pop r15",
-        "pop r14",
-        "pop r13",
-        "pop r12",
-        "pop r11",
-        "pop r10",
-        "pop r9",
-        "pop r8",
-        "popf",
-        "call unlock_scheduler", // force unlock, thread_switch locks Scheduler but returns later
-        "ret",
-        options(noreturn)
-    );
+asm!(
+"mov rsp, rdi", // First parameter -> load 'old_rsp0'
+"pop rbp",
+"pop rdi", // 'old_rsp0' is here
+"pop rsi",
+"pop rdx",
+"pop rcx",
+"pop rbx",
+"pop rax",
+"pop r15",
+"pop r14",
+"pop r13",
+"pop r12",
+"pop r11",
+"pop r10",
+"pop r9",
+"pop r8",
+"popf",
+"call unlock_scheduler", // force unlock, thread_switch locks Scheduler but returns later
+"ret",
+options(noreturn)
+);
 }
 
 /// Description: Low-level function for starting a thread in user mode
@@ -468,71 +491,71 @@ unsafe extern "C" fn thread_kernel_start(old_rsp0: u64) {
 #[allow(unsafe_op_in_unsafe_fn)]
 #[allow(improper_ctypes_definitions)] // 'entry' takes no arguments and has no return value, so we just assume that the "C" and "Rust" ABIs act the same way in this case
 unsafe extern "C" fn thread_user_start(old_rsp0: u64, entry: fn()) {
-    asm!(
-        "mov rsp, rdi", // Load 'old_rsp' (first parameter)
-        "mov rdi, rsi", // Second parameter becomes first parameter for 'kickoff_user_thread()'
-        "iretq",        // Switch to user-mode
-        options(noreturn)
-    )
+asm!(
+"mov rsp, rdi", // Load 'old_rsp' (first parameter)
+"mov rdi, rsi", // Second parameter becomes first parameter for 'kickoff_user_thread()'
+"iretq",        // Switch to user-mode
+options(noreturn)
+)
 }
 
 /// Description: Low-level thread switching function
 #[naked]
 #[allow(unsafe_op_in_unsafe_fn)]
 unsafe extern "C" fn thread_switch(current_rsp0: *mut u64, next_rsp0: u64, next_rsp0_end: u64, next_cr3: u64) {
-    asm!(
-    // Save registers of current thread
-    "pushf",
-    "push r8",
-    "push r9",
-    "push r10",
-    "push r11",
-    "push r12",
-    "push r13",
-    "push r14",
-    "push r15",
-    "push rax",
-    "push rbx",
-    "push rcx",
-    "push rdx",
-    "push rsi",
-    "push rdi",
-    "push rbp",
+asm!(
+// Save registers of current thread
+"pushf",
+"push r8",
+"push r9",
+"push r10",
+"push r11",
+"push r12",
+"push r13",
+"push r14",
+"push r15",
+"push rax",
+"push rbx",
+"push rcx",
+"push rdx",
+"push rsi",
+"push rdi",
+"push rbp",
 
-    // Save stack pointer in 'current_rsp0' (first parameter)
-    "mov [rdi], rsp",
+// Save stack pointer in 'current_rsp0' (first parameter)
+"mov [rdi], rsp",
 
-    // Set rsp0 of kernel stack in tss (third parameter 'next_rsp0_end')
-    "swapgs", // Setup core local storage access via gs base
-    "mov rax,gs:[{CORE_LOCAL_STORAGE_TSS_RSP0_PTR_INDEX}]", // Load pointer to rsp0 entry of tss into rax
-    "mov [rax],rdx", // Set rsp0 entry in tss to 'next_rsp0_end' (third parameter)
-    "swapgs", // Restore gs base
+// Set rsp0 of kernel stack in tss (third parameter 'next_rsp0_end')
+"swapgs", // Setup core local storage access via gs base
+"mov rax,gs:[{CORE_LOCAL_STORAGE_TSS_RSP0_PTR_INDEX}]", // Load pointer to rsp0 entry of tss into rax
+"mov [rax],rdx", // Set rsp0 entry in tss to 'next_rsp0_end' (third parameter)
+"swapgs", // Restore gs base
 
-    // Switch address space (fourth parameter 'next_cr3')
-    "mov cr3, rcx",
+// Switch address space (fourth parameter 'next_cr3')
+"mov cr3, rcx",
 
-    // Load registers of next thread by using 'next_rsp0' (second parameter)
-    "mov rsp, rsi",
-    "pop rbp",
-    "pop rdi",
-    "pop rsi",
-    "pop rdx",
-    "pop rcx",
-    "pop rbx",
-    "pop rax",
-    "pop r15",
-    "pop r14",
-    "pop r13",
-    "pop r12",
-    "pop r11",
-    "pop r10",
-    "pop r9",
-    "pop r8",
-    "popf",
+// Load registers of next thread by using 'next_rsp0' (second parameter)
+"mov rsp, rsi",
+"pop rbp",
+"pop rdi",
+"pop rsi",
+"pop rdx",
+"pop rcx",
+"pop rbx",
+"pop rax",
+"pop r15",
+"pop r14",
+"pop r13",
+"pop r12",
+"pop r11",
+"pop r10",
+"pop r9",
+"pop r8",
+"popf",
 
-    "call unlock_scheduler", // force unlock, thread_switch locks Scheduler but returns later
-    "ret", // Return to next thread
-    CORE_LOCAL_STORAGE_TSS_RSP0_PTR_INDEX = const CORE_LOCAL_STORAGE_TSS_RSP0_PTR_INDEX,
-    options(noreturn)
-    )
+"call unlock_scheduler", // force unlock, thread_switch locks Scheduler but returns later
+"ret", // Return to next thread
+CORE_LOCAL_STORAGE_TSS_RSP0_PTR_INDEX = const CORE_LOCAL_STORAGE_TSS_RSP0_PTR_INDEX,
+options(noreturn)
+)
 }

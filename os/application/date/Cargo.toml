@@ -15,5 +15,7 @@ path = "src/date.rs"
 runtime = { path = "../../library/runtime" }
 terminal = { path = "../../library/terminal" }
 time = { path = "../../library/time" }
+concurrent = { path = "../../library/concurrent" }
+capabilities = { path = "../../library/capabilities" }
 
 chrono = { version = "0.4.38", default-features = false, features = ["alloc"] }

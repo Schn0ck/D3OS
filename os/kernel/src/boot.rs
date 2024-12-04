@@ -7,7 +7,6 @@
    ║ Author: Fabian Ruhland, HHU                                             ║
    ╚═════════════════════════════════════════════════════════════════════════╝
 */
-use alloc::boxed::Box;
 use crate::interrupt::interrupt_dispatcher;
 use crate::naming;
 use crate::syscall::syscall_dispatcher;
@@ -49,7 +48,6 @@ use crate::{acpi_tables, allocator, apic, built_info, efi_system_table, gdt, ini
 use crate::device::pit::Timer;
 use crate::device::ps2::Keyboard;
 use crate::capabilities::*;
-use crate::capabilities;
 use crate::device::qemu_cfg;
 use crate::device::serial::SerialPort;
 use crate::memory::{MemorySpace, nvmem};
@@ -274,7 +272,15 @@ pub extern "C" fn start(multiboot2_magic: u32, multiboot2_addr: *const BootInfor
         .data(), "shell", &Vec::new());
 
     //Add all syscall_capabilities to 'shell' thread
-    Rc::get_mut(&mut thread).unwrap().add_capabilities(Capability::all()); //TODO: reasonable?
+    let t = Rc::get_mut(&mut thread).unwrap();
+    //todo simplify adding all caps?
+    let cap_flags =  CapabilityFlags::from_bits(0x2).unwrap();
+    t.add_capability(Capability::new(CapabilityType::SysTerminal,cap_flags));
+    t.add_capability(Capability::new(CapabilityType::SysVmem, cap_flags));
+    t.add_capability(Capability::new(CapabilityType::SysConcurrency, cap_flags));
+    t.add_capability(Capability::new(CapabilityType::SysTime, cap_flags | CapabilityFlags::Expose));
+    t.add_capability(Capability::new(CapabilityType::SysCapabilities, cap_flags | CapabilityFlags::Expose));
+
 
     //Schedule 'shell' thread
     scheduler().ready(thread);

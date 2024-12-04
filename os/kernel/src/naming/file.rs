@@ -12,6 +12,7 @@
    ║ Author: Michael Schoettner, Univ. Duesseldorf, 15.9.2024                ║
    ╚═════════════════════════════════════════════════════════════════════════╝
 */
+#![allow(unused_comparisons)]
 use alloc::boxed::Box;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
@@ -22,10 +23,10 @@ use spin::RwLock;
 use syscall::return_vals::{Errno, OpenOptions, SeekOrigin};
 use crate::naming::traits::*;
 
-/// NsFile is the actual file with its data
+/// NsFile is the actual file2 with its data
 #[derive(Debug)]
 pub(super) struct NsFile {
-    /// Position within the file
+    /// Position within the file2
     pos: AtomicUsize,
     /// File content
     data: Arc<RwLock<Vec<u8>>>,
@@ -58,7 +59,7 @@ impl NsNode for NsFile {
 
 /// Implement `NsNodeFile` operations for `NsFile`
 impl NsNodeFile for NsFile {
-    fn get_handle(&self, opt: OpenOptions) -> Result<Box<dyn NsOpenFile>, Errno> {
+    fn get_handle(&self, _opt: OpenOptions) -> Result<Box<dyn NsOpenFile>, Errno> {
         Ok(Box::new(NsFile {
             pos: AtomicUsize::new(0),
             data: self.data.clone(),
@@ -115,7 +116,7 @@ impl NsOpenFile for NsFile {
     fn seek(&self, offset: usize, origin: SeekOrigin) -> Result<usize, Errno> {
         match origin {
             SeekOrigin::Start => {
-                let pos = self.pos.store(offset, SeqCst);
+                let _pos = self.pos.store(offset, SeqCst);
                 Ok(offset as usize)
             }
             SeekOrigin::End => {
@@ -123,7 +124,7 @@ impl NsOpenFile for NsFile {
                 let ref vec: &Vec<u8> = guard.as_ref();
                 let data = vec.len() as usize + offset;
                 if data >= 0 {
-                    let pos = self.pos.store(data, SeqCst);
+                    let _pos = self.pos.store(data, SeqCst);
                     Ok(data as usize)
                 } else {
                     Err(Errno::EINVAL)

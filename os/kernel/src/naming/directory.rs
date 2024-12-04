@@ -93,7 +93,7 @@ impl NsNodeDirectory for NsDirectoryWrapper {
             let node_name = String::from(path_part);
 
             if path.is_empty() == true {
-                // reach endpoint => reach file
+                // reach endpoint => reach file2
                 for (name, node) in &self.0.read().children {
                     if name == &node_name {
                         let opt_file = node.downcast_ref::<NsFile>();
@@ -106,7 +106,7 @@ impl NsNodeDirectory for NsDirectoryWrapper {
 
             if path.is_empty() == true {
                 if flags.contains(OpenOptions::CREATE) {
-                    // Create file on demand
+                    // Create file2 on demand
                     let file = Box::new(NsFile::new());
                     let result = file.get_handle(flags);
                     self.0.write().children.push((node_name, file));

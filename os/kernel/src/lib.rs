@@ -1,7 +1,7 @@
 /* ╔═════════════════════════════════════════════════════════════════════════╗
    ║ Module: lib                                                             ║
    ╟─────────────────────────────────────────────────────────────────────────╢
-   ║ Descr.: Main rust file of OS. Includes the panic handler as well as all ║
+   ║ Descr.: Main rust file2 of OS. Includes the panic handler as well as all ║
    ║         globals with init functions.                                    ║
    ╟─────────────────────────────────────────────────────────────────────────╢
    ║ Author: Fabian Ruhland, HHU                                             ║
@@ -68,7 +68,7 @@ pub mod network;
 pub mod capabilities;
 
 pub mod built_info {
-    // The file has been placed there by the build script.
+    // The file2 has been placed there by the build script.
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
 }
 

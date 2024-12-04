@@ -36,6 +36,8 @@ pub enum SystemCall {
     GetDate,
     SetDate,
     MkDir,
+    DebugCapabilities,
+    RemoveCapabilities,
 
     // no syscall, just marking last number, see NUM_SYSCALLS
     // insert any new system calls before this marker

@@ -12,14 +12,27 @@ use alloc::string::ToString;
 use chrono::{DateTime, Datelike, TimeDelta, Timelike};
 use core::ptr;
 use uefi::table::runtime::{Time, TimeParams};
-use crate::{efi_system_table, timer};
+use crate::{efi_system_table, scheduler, timer};
+use crate::capabilities::{Capability, CapabilityFlags, CapabilityType};
 
+fn check_caps(){
+    let cur_thread = scheduler().current_thread();
+    let cap = Capability::new(CapabilityType::SysTime, CapabilityFlags::empty());
+
+    if !cur_thread.validate(cap){
+        panic!("Current thread does not have the required Capability to access concurrency syscalls!");
+    }
+}
 
 pub fn sys_get_system_time() -> isize {
+    check_caps();
+
     timer().systime_ms() as isize
 }
 
 pub fn sys_get_date() -> isize {
+    check_caps();
+
     if let Some(efi_system_table) = efi_system_table() {
         let system_table = efi_system_table.read();
         let runtime_services = unsafe { system_table.runtime_services() };
@@ -54,6 +67,8 @@ pub fn sys_get_date() -> isize {
 }
 
 pub fn sys_set_date(date_ms: usize) -> isize {
+    check_caps();
+
     if let Some(efi_system_table) = efi_system_table() {
         let system_table = efi_system_table.write();
         let runtime_services_read = unsafe { system_table.runtime_services() };

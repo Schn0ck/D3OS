@@ -1,0 +1,12 @@
+cargo-features = ["edition2024"]
+
+[package]
+edition = "2024"
+name = "capabilities"
+version = "0.1.0"
+authors = ["Michael Schöttner <michael.schoettner@hhu.de>, Fabian Ruhland <ruhland@hhu.de>"]
+
+[dependencies]
+# Local dependencies
+syscall = { path = "../syscall" }
+concurrent = { path = "../concurrent" }

@@ -23,6 +23,7 @@ use crate::syscall::sys_terminal::{sys_terminal_read, sys_terminal_write};
 use crate::syscall::sys_naming::sys_mkdir;
 
 use crate::{core_local_storage, tss};
+use crate::syscall::sys_capabilities::{sys_debug_caps, sys_remove_caps};
 
 pub const CORE_LOCAL_STORAGE_TSS_RSP0_PTR_INDEX: u64 = 0x00;
 pub const CORE_LOCAL_STORAGE_USER_RSP_INDEX: u64 = 0x08;
@@ -99,6 +100,8 @@ impl SyscallTable {
                 sys_get_date as *const _,
                 sys_set_date as *const _,
                 sys_mkdir as *const _,
+                sys_debug_caps as *const _,
+                sys_remove_caps as *const _,
             ],
         }
     }
