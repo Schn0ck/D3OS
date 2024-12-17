@@ -28,6 +28,7 @@ bitflags! {
     }
 }
 
+///Capability Object
 #[derive(Debug, Clone, Copy)]
 pub struct Capability {
     cap_type: CapabilityType,

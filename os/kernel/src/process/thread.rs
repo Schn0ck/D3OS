@@ -62,7 +62,7 @@ pub struct Thread {
     process: Arc<Process>, // reference to my process
     entry: fn(),           // user thread: =0;                 kernel thread: address of entry function
     user_rip: VirtAddr,    // user thread: elf-entry function; kernel thread: =0
-    pub(crate) capabilities: Mutex<Vec<Capability>> //Todo maybe more efficient data structure?
+    capabilities: Mutex<Vec<Capability>> //Todo maybe more efficient data structure?
 }
 
 impl Debug for Thread {
@@ -437,6 +437,14 @@ impl Thread {
             self.capabilities.lock().push(
                 cap
             );
+        }
+    }
+
+
+    pub fn remove_capability(&self, cap_type: CapabilityType) {
+        let mut caps = self.capabilities.lock();
+        if let Some(index) = caps.iter().position(|x| x.get_type() == cap_type) {
+            caps.swap_remove(index);
         }
     }
 

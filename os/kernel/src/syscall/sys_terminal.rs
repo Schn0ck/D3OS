@@ -16,7 +16,7 @@ fn check_caps(){
     let cap = Capability::new(CapabilityType::SysTerminal, CapabilityFlags::empty());
 
     if !cur_thread.validate(cap){
-        panic!("Current thread does not have the required Capability to access concurrency syscalls!");
+        panic!("Current thread does not have the required Capability to access Terminal syscalls!");
     }
 }
 

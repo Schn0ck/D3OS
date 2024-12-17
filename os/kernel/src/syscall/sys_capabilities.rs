@@ -39,11 +39,8 @@ pub fn sys_remove_caps(id: usize, cap_type_id: usize) -> isize {
     println!("Removing capability {:?} from thread {}", cap_type, id);
 
     match scheduler().thread(id) {
-        Some(thread) => {
-            let mut caps = thread.capabilities.lock();
-            if let Some(index) = caps.iter().position(|x| *x == Capability::new(cap_type, CapabilityFlags::empty())) {
-                caps.swap_remove(index);
-            }
+        Some(ref thread) => {
+            thread.as_ref().remove_capability(cap_type);
         }
         None => {return convert_syscall_result_to_ret_code(Err(Errno::EINVAL));}
     }
