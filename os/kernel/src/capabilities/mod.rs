@@ -13,7 +13,8 @@ pub enum CapabilityType {
     SysVmem,
     SysConcurrency,
     SysTime,
-    SysCapabilities
+    SysCapabilities,
+    SysNaming
 }
 
 ///Flags used for Inheritance of Capabilities to other threads

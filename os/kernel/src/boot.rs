@@ -274,12 +274,12 @@ pub extern "C" fn start(multiboot2_magic: u32, multiboot2_addr: *const BootInfor
     //Add all syscall_capabilities to 'shell' thread
     let t = Rc::get_mut(&mut thread).unwrap();
     //todo simplify adding all caps?
-    let cap_flags =  CapabilityFlags::from_bits(0x2).unwrap();
+    let cap_flags =  CapabilityFlags::from_bits(0x2).unwrap(); //Expose = 1
     t.add_capability(Capability::new(CapabilityType::SysTerminal,cap_flags));
     t.add_capability(Capability::new(CapabilityType::SysVmem, cap_flags));
     t.add_capability(Capability::new(CapabilityType::SysConcurrency, cap_flags));
-    t.add_capability(Capability::new(CapabilityType::SysTime, cap_flags | CapabilityFlags::Expose));
-    t.add_capability(Capability::new(CapabilityType::SysCapabilities, cap_flags | CapabilityFlags::Expose));
+    t.add_capability(Capability::new(CapabilityType::SysTime, cap_flags));
+    t.add_capability(Capability::new(CapabilityType::SysCapabilities, cap_flags));
 
 
     //Schedule 'shell' thread
